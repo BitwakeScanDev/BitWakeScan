@@ -3,24 +3,56 @@ import { promisify } from "util"
 
 const execAsync = promisify(exec)
 
+export interface RunOptions {
+  /** Override working directory */
+  cwd?: string
+  /** Shell to use (default /bin/bash) */
+  shell?: string
+  /** Timeout in milliseconds */
+  timeoutMs?: number
+  /** Environment variables */
+  env?: NodeJS.ProcessEnv
+}
+
+export interface RunResult {
+  stdout: string
+  stderr: string
+  exitCode: number | null
+}
+
+/**
+ * Simple wrapper around shell commands with async/await,
+ * capturing stdout, stderr, and exit code.
+ */
 export class ShellOps {
   constructor(private readonly cwd: string = process.cwd()) {}
 
   /**
-   * Executes a shell command in the given working directory.
-   * Automatically trims stdout/stderr and handles errors gracefully.
+   * Executes a shell command.
+   *
+   * @param command  The command to run (bash syntax)
+   * @param opts     Optional run settings
+   * @returns        stdout, stderr, and exit code
    */
-  async run(command: string): Promise<{ stdout: string; stderr: string }> {
+  public async run(command: string, opts: RunOptions = {}): Promise<RunResult> {
+    const { cwd = this.cwd, shell = "/bin/bash", timeoutMs, env } = opts
+
     try {
-      const { stdout, stderr } = await execAsync(command, { cwd: this.cwd, shell: "/bin/bash" })
+      const { stdout, stderr } = await execAsync(command, { cwd, shell, timeout: timeoutMs, env })
       return {
         stdout: stdout.trim(),
-        stderr: stderr.trim()
+        stderr: stderr.trim(),
+        exitCode: 0,
       }
-    } catch (error: any) {
+    } catch (err: any) {
+      // err.code is exit code, err.stdout and err.stderr may be Buffers or strings
+      const code = typeof err.code === "number" ? err.code : null
+      const out = err.stdout?.toString().trim() || ""
+      const errStr = err.stderr?.toString().trim() || err.message || ""
       return {
-        stdout: error.stdout?.toString().trim() || "",
-        stderr: error.stderr?.toString().trim() || error.message || "Unknown error"
+        stdout: out,
+        stderr: errStr,
+        exitCode: code,
       }
     }
   }
