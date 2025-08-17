@@ -1,17 +1,11 @@
 import { EventEmitter } from 'events'
 
-/**
- * Represents a single data point in the pulse series
- */
 export interface PulsePoint {
-  timestamp: number      // Unix ms
-  transfers: number      // number of transfers in this interval
-  totalSupply: number    // total token supply at this point
+  timestamp: number
+  transfers: number
+  totalSupply: number
 }
 
-/**
- * Structure of the analysis output
- */
 export interface AnalysisResult {
   averageTransfers: number
   medianTransfers: number
@@ -20,16 +14,7 @@ export interface AnalysisResult {
   supplyVolatility: number
 }
 
-/**
- * PulseCoreAnalyzer performs statistical analysis on a time series of PulsePoint data
- * Emits 'analysisComplete' with the full AnalysisResult
- */
 export class PulseCoreAnalyzer extends EventEmitter {
-  /**
-   * Analyze an array of PulsePoint and compute metrics
-   * @param series sorted array of PulsePoint
-   * @returns AnalysisResult
-   */
   public analyze(series: PulsePoint[]): AnalysisResult {
     if (!series.length) {
       throw new Error('Cannot analyze an empty series')
