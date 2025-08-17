@@ -19,16 +19,10 @@ app.get("/netfeed/transactions/:address", async (req, res) => {
   }
 })
 
-/**
- * POST /netfeed/subscribe
- * Body: { address: string }
- * Returns a simple subscription token (timestamp-based).
- * (In a real system, would hook into WebSocket or webhook.)
- */
+
 app.post("/netfeed/subscribe", (req, res) => {
   const { address } = req.body
   if (!address) return res.status(400).json({ success: false, error: "address required" })
-  // generate a mock subscription ID
   const token = `sub_${Buffer.from(address).toString("hex")}_${Date.now()}`
   res.json({ success: true, subscription: token })
 })
