@@ -28,24 +28,25 @@ export interface JobTrackerEvents {
 }
 
 /**
- * JobTracker manages in‑memory jobs with filtering, pagination,
- * and strongly‑typed events.
+ * Utility to clone and freeze a job object
+ */
+const cloneJob = (job: Job): Job => Object.freeze({ ...job })
+
+/**
+ * In-memory job manager with event support
  */
 export class JobTracker extends EventEmitter {
   private jobs = new Map<string, Job>()
 
-  constructor() {
-    super()
-  }
-
-  public on<K extends keyof JobTrackerEvents>(
+  // Overloaded event handlers for strong typing
+  public override on<K extends keyof JobTrackerEvents>(
     event: K,
     listener: JobTrackerEvents[K]
   ): this {
     return super.on(event, listener as any)
   }
 
-  public off<K extends keyof JobTrackerEvents>(
+  public override off<K extends keyof JobTrackerEvents>(
     event: K,
     listener: JobTrackerEvents[K]
   ): this {
@@ -53,7 +54,7 @@ export class JobTracker extends EventEmitter {
   }
 
   /**
-   * Create a new job
+   * Create and store a new job
    */
   public create(title: string): Job {
     const now = new Date()
@@ -65,59 +66,70 @@ export class JobTracker extends EventEmitter {
       updatedAt: now,
     }
     this.jobs.set(job.id, job)
-    this.emit('jobCreated', job)
-    return { ...job }
+    this.emit('jobCreated', cloneJob(job))
+    return cloneJob(job)
   }
 
   /**
-   * List jobs with optional filtering & pagination
+   * Get all jobs with optional filters and pagination
    */
   public list(options?: {
     status?: JobStatus
     page?: number
     pageSize?: number
   }): Job[] {
-    let arr = Array.from(this.jobs.values())
+    let filtered = Array.from(this.jobs.values())
+
     if (options?.status) {
-      arr = arr.filter(j => j.status === options.status)
+      filtered = filtered.filter(j => j.status === options.status)
     }
+
     if (options?.page && options.pageSize) {
-      const start = (options.page - 1) * options.pageSize
-      arr = arr.slice(start, start + options.pageSize)
+      const start = Math.max((options.page - 1) * options.pageSize, 0)
+      const end = start + options.pageSize
+      filtered = filtered.slice(start, end)
     }
-    return arr.map(j => ({ ...j }))
+
+    return filtered.map(cloneJob)
   }
 
   /**
-   * Get a job by id
+   * Retrieve a job by its ID
    */
   public get(id: string): Job | undefined {
     const job = this.jobs.get(id)
-    return job ? { ...job } : undefined
+    return job ? cloneJob(job) : undefined
   }
 
   /**
-   * Update title or status of an existing job
+   * Apply updates to an existing job
    */
   public update(id: string, changes: JobUpdate): Job {
     const job = this.jobs.get(id)
     if (!job) throw new Error(`Job not found: ${id}`)
-    if (changes.title !== undefined) job.title = changes.title
-    if (changes.status !== undefined) job.status = changes.status
+
+    if (changes.title !== undefined) {
+      job.title = changes.title
+    }
+
+    if (changes.status !== undefined) {
+      job.status = changes.status
+    }
+
     job.updatedAt = new Date()
-    this.emit('jobUpdated', { ...job })
-    return { ...job }
+    this.emit('jobUpdated', cloneJob(job))
+    return cloneJob(job)
   }
 
   /**
-   * Update only the status field
+   * Update only the job's status
    */
   public updateStatus(id: string, status: JobStatus): Job {
     return this.update(id, { status })
   }
 
   /**
-   * Remove a job by id
+   * Remove a job and emit event if it existed
    */
   public remove(id: string): boolean {
     const existed = this.jobs.delete(id)
@@ -128,22 +140,20 @@ export class JobTracker extends EventEmitter {
   }
 
   /**
-   * Clear all jobs, returns number removed
+   * Remove all jobs and emit `jobRemoved` for each
    */
   public clearAll(): number {
-    const count = this.jobs.size
     const ids = Array.from(this.jobs.keys())
     this.jobs.clear()
     ids.forEach(id => this.emit('jobRemoved', id))
-    return count
+    return ids.length
   }
 
   /**
-   * Count jobs, optionally by status
+   * Get total count, or count by status
    */
   public count(status?: JobStatus): number {
     if (!status) return this.jobs.size
-    return Array.from(this.jobs.values()).filter(j => j.status === status)
-      .length
+    return Array.from(this.jobs.values()).filter(j => j.status === status).length
   }
 }
