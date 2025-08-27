@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react"
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { WakeSignalChart } from "./WakeSignalChart"
 import { DEFAULT_SCAN_INTERVAL } from "../config"
 
@@ -8,13 +8,20 @@ interface SignalData {
 }
 
 interface RawSignalData {
-  timestamp: number
+  timestamp: number | string
   volume: number
 }
 
 interface DashboardProps {
   mint: string
   scanInterval?: number
+}
+
+function normalizeTimestamp(ts: number | string): Date {
+  const n = typeof ts === "string" ? Number(ts) : ts
+  // If seconds (10 digits), convert to ms
+  if (Number.isFinite(n) && n < 1e12) return new Date(n * 1000)
+  return new Date(n)
 }
 
 export const BitWakeDashboard: React.FC<DashboardProps> = ({
@@ -25,60 +32,80 @@ export const BitWakeDashboard: React.FC<DashboardProps> = ({
   const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchData = useCallback(async (signal: AbortSignal) => {
-    setLoading(true)
+  const isMounted = useRef(true)
+  const isFetching = useRef(false)
+  const seqRef = useRef(0)
+
+  const intervalMs = useMemo(() => Math.max(1000, scanInterval || DEFAULT_SCAN_INTERVAL), [scanInterval])
+
+  const fetchData = useCallback(async () => {
+    if (isFetching.current) return
+    isFetching.current = true
     setError(null)
+    setLoading(prev => prev && data.length === 0) // keep spinner only if we truly have no data yet
+
+    const controller = new AbortController()
+    const signal = controller.signal
+    const seq = ++seqRef.current
+
     try {
-      const res = await fetch(
-        `/api/wake-signals?mint=${encodeURIComponent(mint)}`,
-        { signal }
-      )
+      const res = await fetch(`/api/wake-signals?mint=${encodeURIComponent(mint)}`, { signal })
       if (!res.ok) {
-        const text = await res.text()
+        const text = await res.text().catch(() => "")
         throw new Error(text || `HTTP ${res.status}`)
       }
       const raw: RawSignalData[] = await res.json()
-      setData(
-        raw.map(d => ({
-          timestamp: new Date(d.timestamp),
-          volume: d.volume,
-        }))
-      )
+      const next = raw.map(d => ({
+        timestamp: normalizeTimestamp(d.timestamp),
+        volume: d.volume,
+      }))
+
+      // ignore out-of-order responses
+      if (!isMounted.current || seq !== seqRef.current) return
+
+      setData(next)
     } catch (e: any) {
       if (e.name !== "AbortError") {
-        setError(e.message)
+        setError(e.message || "Failed to load data")
       }
     } finally {
-      setLoading(false)
+      if (isMounted.current) setLoading(false)
+      isFetching.current = false
     }
-  }, [mint])
+  }, [mint, data.length])
 
   useEffect(() => {
-    const controller = new AbortController()
-    const { signal } = controller
-
-    // initial fetch
-    fetchData(signal)
-
-    // polling
-    const id = setInterval(() => {
-      fetchData(signal)
-    }, scanInterval)
-
+    isMounted.current = true
+    void fetchData()
+    const id = setInterval(() => void fetchData(), intervalMs)
     return () => {
-      controller.abort()
+      isMounted.current = false
       clearInterval(id)
+      seqRef.current++ // invalidate any in-flight responses
     }
-  }, [fetchData, scanInterval])
+  }, [fetchData, intervalMs])
 
   return (
-    <div className="p-6 bg-gray-50 rounded-lg shadow">
-      <h1 className="text-2xl font-bold mb-4">BitWake Scan: {mint}</h1>
-
-      {loading && <p className="text-gray-500">Loading data…</p>}
+    <section className="p-6 bg-gray-50 rounded-lg shadow min-h-[240px]" aria-busy={loading}>
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold">BitWake Scan: {mint}</h1>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void fetchData()}
+            className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-gray-100"
+            aria-label="Refresh data"
+          >
+            Refresh
+          </button>
+          {loading && <span className="text-sm text-gray-500">Loading…</span>}
+        </div>
+      </div>
 
       {error && !loading && (
-        <p className="text-red-600">Error: {error}</p>
+        <div className="text-red-600">
+          Error: {error}
+        </div>
       )}
 
       {!loading && !error && data.length === 0 && (
@@ -88,6 +115,8 @@ export const BitWakeDashboard: React.FC<DashboardProps> = ({
       {!loading && !error && data.length > 0 && (
         <WakeSignalChart data={data} />
       )}
-    </div>
+    </section>
   )
 }
+
+export default BitWakeDashboard
