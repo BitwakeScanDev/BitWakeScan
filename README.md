@@ -14,7 +14,29 @@ BitWakeScan tracks digital wakes left by wallets, tokens, and market actions —
 - Generate alert signals from AI-based evaluation models
 
 ---
+## 🤖 Meet the Agents  
 
+BitWakeScan operates through four specialized AI Agents — each one focused on a distinct layer of blockchain analysis:  
+
+- 🧠 **Analyzer Agent** — token scans, anomaly detection, contract safety checks  
+- 👛 **Wallet Tracker Agent** — monitors whale activity, wallet clusters, and recursive transfers  
+- 🌐 **Social Scanner Agent** — tracks narratives, sentiment shifts, and media-driven market moves  
+- 💧 **Liquidity Strateg Agent** — analyzes liquidity flows, pool depth, and strategic trading scenarios  
+
+---
+
+## 🛠 Custom Agent Builder  
+
+Beyond the foundation agents, BitWakeScan offers a **Custom Agent Builder** — allowing users to combine different intelligence layers into one personalized AI assistant.  
+
+Examples:  
+- **Analyzer + Wallet Tracker** → forensic-grade monitoring of suspicious wallet behaviors  
+- **Social Scanner + Liquidity Strateg** → narrative-driven liquidity tracking  
+- **Full Stack** (all four agents) → a 360° blockchain activity radar  
+
+⚡️ With the Custom Agent Builder, you design **your own AI-powered scanner**, tuned to your trading style — whether that’s forensic tracing, market hunting, or liquidity mapping.  
+
+---
 ## ⚙️ Stack Overview
 
 - TypeScript  
